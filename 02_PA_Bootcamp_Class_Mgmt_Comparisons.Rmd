@@ -1,0 +1,49 @@
+---
+title: "MSU PA Bootcamp Mgmt Comparisons"
+author: "Paul Hegedus"
+date: "5/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+This script contains the analysis to run the simulations of crop responses and net-return for each of the management strategies student groups came up with. This takes some manual editing, where the file name and group name are provided.
+
+**You need to create subfolders in the 'Strategies' folder to store the management strategy shapefile and outputs.**
+
+
+# Setup
+```{r, echo = FALSE}
+library(OFPE)
+acres <- 158
+source("01a_sec1east_models.Rdata") # load the sec1east models
+source("02a_comp_fxns.R") # load the functions for below
+```
+
+
+# Groups
+## GROUPNAME
+```{r}
+group_name <- "GROUPNAME"
+strat_path <- "/Strategies/GROUPNAME/   ...    "
+# run function that performs the sim to predict outcome and makes maps (to strat_path) and outcome table (to Outputs)
+TEMPLATE_output <- run_sim(group_name, strat_path)
+```
+
+
+## ...
+
+## ...
+
+# Comparison
+First, all of the output files need to be compiled in order to make figures. 
+
+```{r}
+list.files("Outputs/")
+# combine them/separate them?
+# make figures ...
+```
+
