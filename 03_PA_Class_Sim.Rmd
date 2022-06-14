@@ -1,0 +1,282 @@
+---
+title: "MSU PA Bootcamp Mgmt Simulations"
+author: "Paul Hegedus"
+date: "5/19/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Introduction
+This script contains the analysis to run the simulations of crop responses and net-return for each of the management strategies student groups came up with. This takes some manual editing in the Setup section, where group name need to be provided. It also takes a manual edit to enter the column names of the prescribed rates.
+
+**You need to get a list of group names to make folders and set up infrastructure.**
+
+# Setup
+Load packages and source functions/models.
+```{r}
+library(OFPE)
+library(tidyverse)
+source("~/Library/CloudStorage/OneDrive-MontanaStateUniversity/BoxMigratedData/Hegedus/Technician/google_key.R")
+# source("~/Library/CloudStorage/OneDrive-MontanaStateUniversity/BoxMigratedData/Hegedus/Technician/difm_db_con.R")
+# source("R/comp_fxns.R") # load the functions for below
+
+modClass <- readRDS("R/sec35middle_modClass.rds")
+sim_dat <- data.table::fread("R/simdat_2021.csv") %>% 
+  list() %>% 
+  lapply(function(x) {x$X <- x$x; x$Y <- x$y; return(x)}) %>% 
+  .[[1]] %>% 
+  sf::st_as_sf(coords = c("X", "Y"), crs = 32612) %>% 
+  sf::st_transform(crs = 4326)
+acres <- 158 # ac
+```
+
+## 1) Group Names and File Paths
+First get a list of the shapefiles in the folder. 
+```{r}
+rx_files <- list.files("raw/") %>% .[grep(".shp", .)]
+rx_files
+```
+
+**Second**, you need the group names and make a list in the same order as the corresponding shapefile above. If left as NA filled out as "Group1", "Group2", etc.
+```{r}
+group_names <- c("caleb.trevor.dipiza", "Field_Cut", "ManagementZone_Sh", "bayne", "nugent_cheat", "nugent_zones", "Riley_Expert", "Team_1", "Shooting in the Dark")                   # ... TODO ....
+if (all(is.na(group_names))) {
+  group_names <- paste0("Group", 1:length(rx_files))
+}
+```
+
+## 2) Create Folders
+Now you can create folders with the group names and create a list with information for each group.  This also creates the list object holding all information and data for each group. 
+```{r}
+# first create the list object and create folders based on the group_names
+group_list <- as.list(group_names) %>% 
+  lapply(function(x) {
+    if (!file.exists(paste0("Strategies/", x))) {
+      dir.create(paste0("Strategies/", x));
+      dir.create(paste0("Strategies/", x, "/Maps"));
+      dir.create(paste0("Strategies/", x, "/InputStrategy"));
+      dir.create(paste0("Strategies/", x, "/Output"))
+    } 
+  })  %>% 
+  as.list(group_names) %>% 
+  `names<-`(group_names) %>% 
+  lapply(function(x) {x <- NULL; return(x)}) %>% 
+  mapply(function(x, y) {x$group_name <- y; return(x)}, ., group_names, SIMPLIFY = FALSE) %>% 
+# then fill out the path to the strategy shapefile
+  mapply(function(x, y) {
+    x$strat_file_path <- y; 
+    return(x)
+  }, 
+  ., 
+  rx_files, 
+  SIMPLIFY = FALSE) %>% 
+  lapply(function(x, y) {x$sim_dat <- sim_dat; return(x)}, 
+         sim_dat)
+```
+
+
+## 3) Import Management Strategies
+Now that folders are created in the "Strategies" folder. Place each group's management strategy shapefiles in the "InputStrategy" subfolder.
+```{r}
+group_list <- lapply(group_list,
+       function(x) {
+        x$input_strat <- sf::st_read(paste0("raw/", x$strat_file_path)) %>% 
+          sf::st_transform(crs = 32612) %>% 
+          sf::st_transform(crs = 4326);
+        sf::st_write(x$input_strat, 
+                     paste0("Strategies/", x$group_name, "/InputStrategy/", x$group_name, "_rx.shp"), 
+                     append = FALSE, quiet = TRUE);
+        return(x)
+       }) 
+```
+
+Add the OFPE strategy to the list.
+```{r}
+group_list$OFPE <- list(
+  group_name = "OFPE",
+  strat_file_path = "OFPE_opt_rx.shp",
+  sim_dat = sim_dat,
+  input_strat = sf::st_read(paste0("Strategies/OFPE/InputStrategy/OFPE_opt_rx.shp")) %>% 
+    sf::st_transform(crs = 32612) %>% 
+    sf::st_transform(crs = 4326)
+)
+```
+
+```{r}
+lapply(group_list, function(x) names(x$input_strat))
+```
+
+## 4) Extract Mgmt Rates to Simulation Data
+**Note** need to have column names standardized or the only column that is not "id". Or need to have a list of the column names  of rate names. Must handle points for the OFPE strategy and polygons for the students.
+```{r}
+col_names <- c("N2", "N", "N", "N_rate", "N", "N", "N", "Nitrogen", "N", "opt_N")       # ... TODO fill out from output above ...
+group_list <- mapply(function(x, y) { 
+                       if (x$group_name != "OFPE") {
+                         x$sim_dat <- sf::st_intersection(x$sim_dat, x$input_strat)
+                       } else {
+                         nn <- nngeo::st_nn(x$sim_dat, x$input_strat, k = 1)
+                         temp <- sf::st_drop_geometry(x$input_strat)
+                         x$sim_dat$aa_n <- temp[unlist(nn), grep(y, names(temp))]
+                       }
+                       names(x$sim_dat)[grep(y, names(x$sim_dat))] <- "aa_n"
+                       x$sim_dat <- sf::st_drop_geometry(x$sim_dat) %>% 
+                         as.data.frame()
+                       return(x)
+                     },
+                     group_list,
+                     col_names,
+                     SIMPLIFY = FALSE)
+```
+
+
+# Simulation Workflow
+Now perform the simulation that makes predictions about the net-return, yields, protein, and compares predictions and the amount of nitrogen applied with each strategy. This process appends the N rate data from prescriptions to a dataset with environmental covariate data from 2021. The yield and protein are predicted using the models fit to the sec1east data and net-return based on the prescribed rates are calculated. 
+
+These dataset with the resulting predictions is used to compare management outcomes and generate maps.  
+
+## Predict Yield and Protein
+Use the functions in modClass to predict yield and protein at all points in 2021 dataset.
+```{r}
+library(ranger) # need to load this into your workspace
+group_list <- lapply(group_list,
+                     function(x, modClass) {
+                       x$sim_dat <- x$sim_dat[!is.na(x$sim_dat$aa_n), ]
+                       x$sim_dat$yld <- modClass$mod_list$yld$predResps(x$sim_dat, 
+                                                                        modClass$mod_list$yld$m)
+                       x$sim_dat$pro <- modClass$mod_list$pro$predResps(x$sim_dat, 
+                                                                        modClass$mod_list$pro$m)
+                       return(x)
+                     },
+                     modClass)
+```
+
+
+## Calculate Net-Return
+Calculate the net-return based on the predicted yield and protein.
+```{r}
+econDat <- EconDat$new(ssAC = 0,
+                       Prc = "Default",
+                       PD = "2021")
+econDat$Prc <- econDat$Prc %>% 
+  .[.$Year == '2021', ]
+
+group_list <- lapply(group_list, 
+                     function(x, ed) {
+                       P <- ed$Prc$conv + (ed$B0pd + ed$B1pd * x$sim_dat$pro +  ed$B2pd * x$sim_dat$pro^2)
+                       x$sim_dat$NR <- (x$sim_dat$yld * P) - (ed$Prc$cost * x$sim_dat$aa_n) - ed$Prc$FC;
+                       return(x)
+                     },
+                     econDat)
+```
+
+
+## Calculate all Metrics & Save
+Save the simulation data. 
+```{r}
+lapply(group_list, 
+       function(x) {
+         write.csv(x$sim_dat, 
+                   paste0("Strategies/", x$group_name, "/Output/", x$group_name, "_simulated_data.csv")) 
+       }) %>% 
+  invisible()
+```
+
+Calculate metrics and save in output table.
+```{r}
+group_list <- lapply(group_list, 
+                     function(x) {
+                       # pro % * yld (bu/ac) * 60 (lbs/bu) = lbs pro / acre
+                       # pro_lbs <- (x$sim_dat$pro / 100) * x$sim_dat$yld * 60 
+                       # tot_pro_lbs <- sum(pro_lbs * (acres / nrow(x$sim_dat[!is.na(x$sim_dat$pro), ])))
+                       # mean_pro_lbs <- mean(pro_lbs, na.rm = TRUE)
+                       x$out_table <- data.frame(
+                         Group = x$group_name,
+                         TotalNR = sum(x$sim_dat$NR * (acres / nrow(x$sim_dat[!is.na(x$sim_dat$NR), ]))),
+                         MeanNR = mean(x$sim_dat$NR, na.rm = TRUE),
+                         TotalN = sum(x$sim_dat$aa_n * (acres / nrow(x$sim_dat[!is.na(x$sim_dat$aa_n), ]))),
+                         MeanN = mean(x$sim_dat$aa_n, na.rm = TRUE),
+                         TotalYld = sum(x$sim_dat$yld * (acres / nrow(x$sim_dat[!is.na(x$sim_dat$yld), ]))),
+                         MeanYld = mean(x$sim_dat$yld, na.rm = TRUE),
+                         MeanPro = mean(x$sim_dat$pro, na.rm = TRUE)
+                       )
+                       data.table::fwrite(
+                         x$out_table,
+                         paste0("Strategies/", x$group_name, "/Output/", x$group_name, "_output_data.csv")
+                       )
+                       return(x)
+                     })
+```
+
+
+## Generate Maps & Save
+Map the resulting metrics and save to group folder. 
+```{r}
+#group_list <- group_list[5:6]
+obsOP <- ObsOP$new()
+lapply(group_list,
+       function(x) {
+         obsOP$plotObsMaps(
+           dat = x$sim_dat,
+           var = "Nitrogen Rx",
+           var_col_name = "aa_n",
+           var_label = "Nitrogen (lbs/ac)",
+           var_main_label = "Prescribed Nitrogen Rates",
+           fieldname = "sec35middle", 
+           year = "2021",
+           farmername = "broyles",
+           utm_fieldname = "sec35middle",
+           utm_zone = 32612,
+           SAVE = TRUE,
+           out_path = paste0("Strategies/", x$group_name, "/Maps/", x$group_name, "_nitrogen_Rx.csv")
+         ) 
+         obsOP$plotObsMaps(
+           dat = x$sim_dat,
+           var = "Predicted NR",
+           var_col_name = "NR",
+           var_label = "Net-Return ($/ac)",
+           var_main_label = "Predicted Net-Return",
+           fieldname = "sec35middle", 
+           year = "2021",
+           farmername = "broyles",
+           utm_fieldname = "sec35middle",
+           utm_zone = 32612,
+           SAVE = TRUE,
+           out_path = paste0("Strategies/", x$group_name, "/Maps/", x$group_name, "_predicted_NR.csv")
+         )
+         obsOP$plotObsMaps(
+           dat = x$sim_dat,
+           var = "Predicted Yld",
+           var_col_name = "yld",
+           var_label = "Yield (bu/ac)",
+           var_main_label = "Predicted Yield",
+           fieldname = "sec35middle", 
+           year = "2021",
+           farmername = "broyles",
+           utm_fieldname = "sec35middle",
+           utm_zone = 32612,
+           SAVE = TRUE,
+           out_path = paste0("Strategies/", x$group_name, "/Maps/", x$group_name, "_predicted_yld.csv")
+         )
+         obsOP$plotObsMaps(
+           dat = x$sim_dat,
+           var = "Predicted Pro",
+           var_col_name = "pro",
+           var_label = "Protein (%)",
+           var_main_label = "Predicted Protein",
+           fieldname = "sec35middle", 
+           year = "2021",
+           farmername = "broyles",
+           utm_fieldname = "sec35middle",
+           utm_zone = 32612,
+           SAVE = TRUE,
+           out_path = paste0("Strategies/", x$group_name, "/Maps/", x$group_name, "_predicted_pro.csv")
+         )
+       })
+```
+
+
+

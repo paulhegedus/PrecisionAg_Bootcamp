@@ -1,0 +1,235 @@
+---
+title: "MSU PA Bootcamp Mgmt Comparisons"
+author: "Paul Hegedus"
+date: "6/4/2022"
+output: word_document
+---
+
+# Introduction
+This script runs the code to compare the strategies between the groups and OFPE. The process is to import the output table from each group and compile to make bar charts comparing each strategy.
+
+# Setup
+```{r}
+library(OFPE)
+library(tidyverse)
+```
+
+# Import Output Table
+```{r}
+groups <- list.files("Strategies/")
+#groups <- groups[-5]
+out_dat <- lapply(groups, 
+                  function(x) read.csv(paste0("Strategies/", x, "/Output/", x, "_output_data.csv"))) %>% 
+  do.call(rbind, .)
+
+# out_dat <- list(
+#   bayne = read.csv(paste0("Strategies/bayne/Output/bayne_output_data.csv")),
+#   caleb.trevor.dipiza,
+#   Field_Cut,
+#   ManagementZone_Sh,
+#   Riley_Expert
+# )
+
+out_dat$Group <- factor(out_dat$Group)
+```
+
+# Make Output Charts
+Compare each strategy by creating bar charts for each metric.
+
+## Total Net-Return
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$TotalNR, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = TotalNR)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Total Net-Return ($/field)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(TotalNR, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/TotalNR.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+## Mean Net-Return
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$MeanNR, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = MeanNR)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Mean Net-Return ($/acre)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(MeanNR, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/MeanNR.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+## Total Nitrogen
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$TotalN, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = TotalN)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Total N Applied (lbs/field)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(TotalN, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/TotalN.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+## Mean Nitrogen
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$MeanN, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = MeanN)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Mean N Applied (lbs/acre)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(MeanN, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/MeanN.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+## Total Yield
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$TotalYld, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = TotalYld)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Total Yield (bu/field)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(TotalYld, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/TotalYld.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+## Mean Yield
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$MeanYld, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = MeanYld)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Mean Yield (bu/acre)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(MeanYld, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/MeanYld.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+## Mean Protein
+```{r}
+MIN <- 0
+MAX <- DescTools::RoundTo(max(out_dat$MeanPro, na.rm = T), 5, ceiling)
+STEP <- (MAX - MIN) / 10
+
+p <- ggplot2::ggplot(out_dat, ggplot2::aes(x = Group, y = MeanPro)) +
+  ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
+  ggplot2::scale_y_continuous(name = paste0("Mean Protein (%)"),
+                              limits = c(MIN, MAX),
+                              breaks = seq(MIN, MAX, STEP)) +
+  ggplot2::scale_x_discrete(name = "Strategy") +
+  ggplot2::geom_text(data = out_dat,
+                     ggplot2::aes(label = round(MeanPro, 1)),
+                     position = ggplot2::position_dodge2(1, padding = 1),
+                     hjust = "middle",
+                     vjust = "bottom") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text = ggplot2::element_text(size = 12),
+                 legend.text = ggplot2::element_text(size = 12),
+                 axis.title = ggplot2::element_text(size = 14),
+                 legend.title = ggplot2::element_text(size = 14))
+ggplot2::ggsave(paste0("Comparisons/MeanPro.png"),
+                        plot = p, device = "png", scale = 1,
+                        width = 10, height = 7.5, units = "in")
+```
+
+
+
