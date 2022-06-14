@@ -1,0 +1,2 @@
+NR.ssopt>NR.min	NR.ssopt>NR.fs	NR.ssopt>NR.ffopt	NR.ssopt>NR.act	NR.ssopt>NR.opp
+1	1	0.876	1	0.411
